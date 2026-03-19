@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  auth-lambda
+  Serverless Lambda function for authentication via CPF
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        JWT_SECRET: !Sub '{{resolve:secretsmanager:${JWTSecret}:SecretString:key}}'
+        DB_HOST: !Ref DatabaseHost
+        DB_PORT: !Ref DatabasePort
+        DB_NAME: !Ref DatabaseName
+        DB_USER: !Ref DatabaseUser
+        DB_PASSWORD: !Sub '{{resolve:secretsmanager:${DBPasswordSecret}:SecretString:password}}'
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+
+Parameters:
+  DatabaseHost:
+    Type: String
+    Default: localhost
+    Description: Database host
+  DatabasePort:
+    Type: String
+    Default: '5432'
+    Description: Database port
+  DatabaseName:
+    Type: String
+    Default: tech_challenge
+    Description: Database name
+  DatabaseUser:
+    Type: String
+    Default: postgres
+    Description: Database user
+  JWTSecret:
+    Type: String
+    Default: auth-lambda-jwt-secret
+    Description: JWT Secret name in Secrets Manager
+  DBPasswordSecret:
+    Type: String
+    Default: auth-lambda-db-password
+    Description: Database password secret name
+
+Resources:
+  AuthenticateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tech-challenge-authenticate
+      CodeUri: src/
+      Handler: handlers/authenticate.lambdaHandler
+      Runtime: nodejs18.x
+      Architectures:
+        - x86_64
+      Events:
+        AuthenticateAPI:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AuthGateway
+            Path: /auth/authenticate
+            Method: POST
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*'
+            - Effect: Allow
+              Action:
+                - ec2:CreateNetworkInterface
+                - ec2:DescribeNetworkInterfaces
+                - ec2:DeleteNetworkInterface
+              Resource: '*'
+
+  AuthGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: TechChallengeAuthGateway
+      Description: API Gateway for authentication
+
+  AuthGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - AuthenticateFunction
+    Properties:
+      RestApiId: !Ref AuthGateway
+
+  AuthGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref AuthGateway
+      DeploymentId: !Ref AuthGatewayDeployment
+      StageName: prod
+      TracingEnabled: true
+
+Outputs:
+  AuthenticateFunctionArn:
+    Description: ARN of Authenticate Lambda Function
+    Value: !GetAtt AuthenticateFunction.Arn
+
+  AuthGatewayEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${AuthGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+
+  AuthGatewayId:
+    Description: API Gateway ID
+    Value: !Ref AuthGateway
