@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+﻿AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   auth-lambda
@@ -49,8 +49,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: tech-challenge-authenticate
-      CodeUri: src/
-      Handler: handlers/authenticate.lambdaHandler
+      CodeUri: .
+      Handler: src/handlers/authenticate.lambdaHandler
       Runtime: nodejs18.x
       Architectures:
         - x86_64
@@ -58,7 +58,6 @@ Resources:
         AuthenticateAPI:
           Type: Api
           Properties:
-            RestApiId: !Ref AuthGateway
             Path: /auth/authenticate
             Method: POST
       Policies:
@@ -75,27 +74,6 @@ Resources:
                 - ec2:DeleteNetworkInterface
               Resource: '*'
 
-  AuthGateway:
-    Type: AWS::ApiGateway::RestApi
-    Properties:
-      Name: TechChallengeAuthGateway
-      Description: API Gateway for authentication
-
-  AuthGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - AuthenticateFunction
-    Properties:
-      RestApiId: !Ref AuthGateway
-
-  AuthGatewayStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      RestApiId: !Ref AuthGateway
-      DeploymentId: !Ref AuthGatewayDeployment
-      StageName: prod
-      TracingEnabled: true
-
 Outputs:
   AuthenticateFunctionArn:
     Description: ARN of Authenticate Lambda Function
@@ -103,8 +81,13 @@ Outputs:
 
   AuthGatewayEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub 'https://${AuthGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
 
   AuthGatewayId:
     Description: API Gateway ID
-    Value: !Ref AuthGateway
+    Value: !Ref ServerlessRestApi
+
+
+
+
+

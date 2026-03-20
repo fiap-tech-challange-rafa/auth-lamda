@@ -1,9 +1,10 @@
-const logger = require('pino')();
+﻿const logger = require('../utils/logger');
 
 const authenticate = async (event) => {
-  const { cpf, clientId } = event.body ? JSON.parse(event.body) : event;
+  const payload = typeof event?.body === 'string' ? JSON.parse(event.body) : (event?.body || event || {});
+  const { cpf, clientId } = payload;
 
-  logger.info({ cpf, clientId }, 'Authenticate request received');
+  logger.info(`Authenticate request received for clientId=${clientId || 'N/A'}`);
 
   // Validate input
   if (!cpf || !clientId) {
@@ -25,7 +26,7 @@ const authenticate = async (event) => {
 
     // Step 1: Validate CPF format
     if (!validateCPF(cpf)) {
-      logger.warn({ cpf }, 'Invalid CPF format');
+      logger.warn(`Invalid CPF format for value=${cpf}`);
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -37,8 +38,8 @@ const authenticate = async (event) => {
 
     // Step 2: Check if client exists in database
     const client = await getClientByCPF(cpf);
-    if (!client || client.id !== parseInt(clientId, 10)) {
-      logger.warn({ cpf, clientId }, 'Client not found or ID mismatch');
+    if (!client || Number(client.id) !== Number(clientId)) {
+      logger.warn(`Client not found or ID mismatch for cpf=${cpf} and clientId=${clientId}`);
       return {
         statusCode: 404,
         body: JSON.stringify({
@@ -51,7 +52,7 @@ const authenticate = async (event) => {
     // Step 3: Check if client is active
     const isActive = await isClientActive(client.id);
     if (!isActive) {
-      logger.warn({ clientId: client.id }, 'Client is not active');
+      logger.warn(`Client is not active. clientId=${client.id}`);
       return {
         statusCode: 403,
         body: JSON.stringify({
@@ -64,7 +65,7 @@ const authenticate = async (event) => {
     // Step 4: Generate JWT token
     const tokenData = generateToken(client);
 
-    logger.info({ clientId: client.id }, 'Authentication successful');
+    logger.info(`Authentication successful. clientId=${client.id}`);
 
     return {
       statusCode: 200,
@@ -81,7 +82,7 @@ const authenticate = async (event) => {
       }),
     };
   } catch (error) {
-    logger.error({ error: error.message, stack: error.stack }, 'Authentication error');
+    logger.error(`Authentication error: ${error.message}`);
     return {
       statusCode: 500,
       body: JSON.stringify({
@@ -93,3 +94,4 @@ const authenticate = async (event) => {
 };
 
 module.exports = { lambdaHandler: authenticate };
+
